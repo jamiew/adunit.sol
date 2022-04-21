@@ -4,38 +4,41 @@ pragma solidity 0.8.10;
 import "openzeppelin-contracts/token/ERC721/ERC721.sol";
 import "openzeppelin-contracts/utils/Strings.sol";
 import "./Base64.sol";
+import "forge-std/console.sol";
 
 contract AdUnit is ERC721 {
 
   struct Ad {
     uint256 id;
-    address creator;
-    uint256 createdAtBlock;
+    address buyer;
+    uint256 blockNum;
     string headline;
     string subhead;
     string url;
   }
 
+  Ad public currentAd;
   uint256 public adsCount;
-  Ad currentAd;
-  uint256 lastPricePaid;
-  uint256 lastPaymentBlock;
-  address lastPayer;
+  uint256 public lastPricePaid;
+  uint256 public lastPaymentBlock;
+  address public lastPayer;
 
-  uint256 public startingPrice = 0.001 ether;
+  uint256 public constant startingPrice = 0.001 ether;
 
-  event AdChanged(uint256 indexed id, address indexed newCreator, string headline, string subhead, string url);
+  event AdChanged(uint256 indexed id, address indexed buyer, string headline, string subhead, string url);
   event JoinedAdNetwork(address indexed who);
 
+  error InsufficientPayment();
+
   modifier paidEnough () {
-    // TODO
-    // test payable amount is >= currentPrice()
+    console.log("paidEnough?", msg.value, currentPrice());
+    if (msg.value < currentPrice()) {
+      revert InsufficientPayment();
+    }
     _;
   }
 
-  constructor() ERC721("AdUnit", "AD") {
-    // nothing to see here
-  }
+  constructor() ERC721("AdUnit", "AD") {}
 
   function currentPrice() public view returns (uint256) {
     if (lastPricePaid == 0) return startingPrice;
@@ -45,8 +48,10 @@ contract AdUnit is ERC721 {
     return (lastPricePaid / (blockDiff / 20000)) + startingPrice;
   }
 
-  function buyNow(string memory headline, string memory subhead, string memory url) public payable
-  paidEnough() {
+  function buyNow(string memory headline, string memory subhead, string memory url)
+  public payable
+  paidEnough()
+  {
     adsCount++;
     uint256 nextId = adsCount;
 
@@ -72,6 +77,10 @@ contract AdUnit is ERC721 {
     require(balanceOf(_msgSender()) == 0); // only one per person
     _safeMint(_msgSender(), 1);
     emit JoinedAdNetwork(_msgSender());
+  }
+
+  function hasJoined() public view returns (bool) {
+    return balanceOf(_msgSender()) > 0;
   }
 
   function tokenURI(uint256 tokenId) override public view returns (string memory) {
